@@ -1,0 +1,138 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Employee status enum
+enum EmployeeStatus {
+  ONSITE      @map("現場")
+  OFFICE      @map("内勤")
+  TRAINING    @map("研修中")
+  SEARCHING   @map("現場探し中")
+}
+
+enum Role {
+  ADMIN
+  SALES
+  VIEWER
+}
+
+// Employee model
+model Employee {
+  id          Int             @id @default(autoincrement())
+  employeeId  String          @unique
+  firstName   String
+  lastName    String
+  email       String          @unique
+  department  String
+  position    String
+  status      EmployeeStatus  @default(OFFICE)
+  hireDate    DateTime
+  memo        String?         @default("")
+  skills      EmployeeSkill[]
+  cases       Case[]               // 案件との1対多の関係
+  assignments EmployeeAssignment[] // 中間テーブルへのリレーション
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+}
+
+// Assignment model (課題) - Many-to-Many with Employee
+model Assignment {
+  id          Int                @id @default(autoincrement())
+  name        String             // 課題名
+  content     String             // 課題内容
+  difficulty  Int                // 難易度 (e.g., 1-5)
+  employees   EmployeeAssignment[] // 中間テーブルへのリレーション
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+// Explicit Join Table for Employee and Assignment (Many-to-Many)
+model EmployeeAssignment {
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId   Int
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId Int
+  startDate    DateTime // 開始日 (中間テーブルへ移動)
+  endDate      DateTime // 終了日　(中間テーブルへ移動)
+  isCompleted  Boolean  @default(false) // 完了済みか (中間テーブルへ移動)
+  assignedAt   DateTime @default(now()) // Optional: when the assignment was assigned
+
+  @@id([employeeId, assignmentId]) // Composite primary key
+}
+
+// Case model (案件)
+model Case {
+  id          Int       @id @default(autoincrement())
+  companyName String    // 会社名
+  description String    // 案件内容
+  startDate   DateTime  // 開始時期
+  endDate     DateTime  // 終了時期
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId  Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  skills      CaseSkill[] // 中間テーブルへのリレーション
+}
+
+// Skill model
+model Skill {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique
+  category    String
+  description String?
+  employees   EmployeeSkill[]
+  cases       CaseSkill[] // 中間テーブルへのリレーション
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+// Junction table for Case and Skill with level
+model CaseSkill {
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId    Int
+  skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skillId   Int
+  level     Int      // スキルレベル
+
+  @@id([caseId, skillId]) // Composite primary key
+}
+
+// Junction table for Employee and Skill with proficiency level
+model EmployeeSkill {
+  id           Int      @id @default(autoincrement())
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId   Int
+  skill        Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skillId      Int
+  proficiency  Int      // 1-5 scale where 5 is expert
+  yearsOfExp   Float?   // Years of experience with this skill
+  certified    Boolean  @default(false)
+  certDetails  String?
+  lastUsed     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([employeeId, skillId])
+}
+
+// User model for authentication
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(VIEWER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
