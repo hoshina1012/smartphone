@@ -6,13 +6,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import LoginScreen from './src/screens/Login';
 import SignupScreen from './src/screens/Signup';
 import DashboardScreen from './src/screens/Dashboard';
-
-type RootStackParamList = {
-  Home: undefined;
-  Login: undefined;
-  Signup: undefined;
-  Dashboard: undefined;
-};
+import type { RootStackParamList } from './src/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
