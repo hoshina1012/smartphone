@@ -1,13 +1,7 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { compare } from 'bcrypt';
 import prisma from '@/lib/prisma';
 import { serialize } from 'cookie';
-import { z } from 'zod';
-
-const loginSchema = z.object({
-  email: z.string().email({ message: "メールアドレスの形式が正しくありません" }),
-  password: z.string().min(6, { message: "パスワードは6文字以上必要です" }),
-});
 
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
@@ -18,15 +12,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { SignJWT } = await import('jose');
+    const { email, password } = req.body;
 
-    const result = loginSchema.safeParse(req.body);
-
-    if (!result.success) {
-      const formattedErrors = result.error.format();
-      return res.status(400).json({ error: formattedErrors });
+    // 簡易なバリデーション
+    if (!email || !password) {
+      return res.status(400).json({ error: 'メールアドレスとパスワードは必須です' });
     }
-
-    const { email, password } = result.data;
 
     const user = await prisma.user.findUnique({ where: { email } });
 
@@ -46,7 +37,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .setIssuedAt()
       .sign(SECRET);
 
-    // クッキーを設定
     res.setHeader('Set-Cookie', serialize('token', token, {
       httpOnly: true,
       path: '/',

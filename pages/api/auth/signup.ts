@@ -2,8 +2,16 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { hash } from 'bcrypt';
 import prisma from '@/lib/prisma';
 import { serialize } from 'cookie';
+import { z } from 'zod';
 
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
+
+// Zodスキーマでバリデーションを定義
+const signupSchema = z.object({
+  name: z.string().min(1, { message: '名前は1文字以上必要です' }),
+  email: z.string().email({ message: 'メールアドレスの形式が正しくありません' }),
+  password: z.string().min(6, { message: 'パスワードは6文字以上必要です' }),
+});
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -11,19 +19,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  const { SignJWT } = await import('jose'); // ← ESMモジュールを動的にインポート
-
-  const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
+  const { SignJWT } = await import('jose');
 
   try {
-    const { email, password, name } = req.body;
+    // Zodでリクエストボディを検証
+    const result = signupSchema.safeParse(req.body);
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'メールアドレスとパスワードは必須です' });
-      return;
-    }
+    if (!result.success) {
+  const formattedErrors = result.error.format();
 
-    // 既にメールアドレス登録済みかチェック
+  console.error('バリデーションエラー:', JSON.stringify(formattedErrors, null, 2)); // ← 追加
+  return res.status(400).json({ error: formattedErrors });
+}
+
+    const { email, password, name } = result.data;
+
+    // 既に登録済みか確認
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       res.status(400).json({ error: 'このメールアドレスは既に登録されています' });
@@ -42,18 +53,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    // JWTトークン作成
+    // JWT発行
     const token = await new SignJWT({ email: user.email, id: user.id })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('40h')
       .setIssuedAt()
       .sign(SECRET);
 
-    // Cookieを設定しつつレスポンス返す
+    // クッキーにセット
     res.setHeader('Set-Cookie', serialize('token', token, {
       httpOnly: true,
       path: '/',
-      maxAge: 60 * 60 * 40, // 40時間
+      maxAge: 60 * 60 * 40,
       sameSite: 'strict',
       secure: process.env.NODE_ENV === 'production',
     }));

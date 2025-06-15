@@ -11,7 +11,17 @@ export default function SignupScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
 
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
   const handleSubmit = async () => {
+    // 前回のエラーをクリア
+    setMessage('');
+    setNameError('');
+    setEmailError('');
+    setPasswordError('');
+
     try {
       const response = await fetch('http://192.168.0.64:3000/api/auth/signup', {
         method: 'POST',
@@ -24,7 +34,14 @@ export default function SignupScreen({ navigation }: Props) {
         Alert.alert('成功', 'アカウント登録に成功しました。ログインしてください。');
         navigation.navigate('Login');
       } else {
-        setMessage(`エラー: ${data.error}`);
+        // Zodのバリデーションエラーが返ってきた場合
+        if (data.error && typeof data.error === 'object') {
+          setNameError(data.error.name?._errors?.[0] || '');
+          setEmailError(data.error.email?._errors?.[0] || '');
+          setPasswordError(data.error.password?._errors?.[0] || '');
+        } else {
+          setMessage(`エラー: ${data.error || '不明なエラーが発生しました'}`);
+        }
       }
     } catch (error) {
       setMessage('サインアップ中にエラーが発生しました');
@@ -41,6 +58,7 @@ export default function SignupScreen({ navigation }: Props) {
         value={name}
         onChangeText={setName}
       />
+      {nameError !== '' && <Text style={styles.errorText}>{nameError}</Text>}
 
       <TextInput
         style={styles.input}
@@ -50,6 +68,7 @@ export default function SignupScreen({ navigation }: Props) {
         keyboardType="email-address"
         autoCapitalize="none"
       />
+      {emailError !== '' && <Text style={styles.errorText}>{emailError}</Text>}
 
       <TextInput
         style={styles.input}
@@ -58,6 +77,7 @@ export default function SignupScreen({ navigation }: Props) {
         onChangeText={setPassword}
         secureTextEntry
       />
+      {passwordError !== '' && <Text style={styles.errorText}>{passwordError}</Text>}
 
       {message !== '' && <Text style={styles.errorText}>{message}</Text>}
 
@@ -84,12 +104,12 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 6,
     padding: 10,
-    marginBottom: 16,
+    marginBottom: 4,
     fontSize: 16,
   },
   errorText: {
     color: 'red',
-    marginBottom: 12,
-    textAlign: 'center',
+    marginBottom: 8,
+    textAlign: 'left',
   },
 });
